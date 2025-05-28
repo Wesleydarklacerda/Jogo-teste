@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo de Fases Progressivas</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #f0f0f0; font-family: sans-serif; }
+    canvas { display: block; margin: 0 auto; background: #fff; border: 1px solid #ccc; }
+    #menu, #ranking, #nameInput {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #menu h1, #ranking h2, #nameInput h2 { margin-bottom: 20px; }
+    #menu button, #ranking button, #nameInput button {
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #rankingList {
+      margin-bottom: 20px;
+    }
+    #nameField {
+      padding: 10px;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h1>Jogo de Fases</h1>
+    <button onclick="startGame()">Iniciar Jogo</button>
+  </div>
+  <div id="nameInput" style="display:none">
+    <h2>Digite seu nome para o ranking:</h2>
+    <input type="text" id="nameField" placeholder="Seu nome" maxlength="20">
+    <button onclick="saveScore()">Salvar Pontuação</button>
+  </div>
+  <div id="ranking" style="display:none">
+    <h2>Ranking</h2>
+    <div id="rankingList"></div>
+    <button onclick="location.reload()">Voltar ao Menu</button>
+  </div>
+
+  <canvas id="gameCanvas" width="500" height="400"></canvas>
+  <button onclick="location.reload()" style="position:absolute;top:10px;right:10px;z-index:10">Reiniciar</button>
+
+  <audio id="goalSound" src="https://www.soundjay.com/button/sounds/button-3.mp3"></audio>
+  <audio id="gameOverSound" src="https://www.soundjay.com/button/sounds/button-10.mp3"></audio>
+  <audio id="bgm" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" autoplay loop></audio>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_DOMINIO.firebaseapp.com",
+      projectId: "SEU_PROJECT_ID",
+      storageBucket: "SEU_BUCKET.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const goalSound = document.getElementById('goalSound');
+    const gameOverSound = document.getElementById('gameOverSound');
+    const bgm = document.getElementById('bgm');
+    const menu = document.getElementById('menu');
+    const ranking = document.getElementById('ranking');
+    const rankingList = document.getElementById('rankingList');
+    const nameInput = document.getElementById('nameInput');
+    const nameField = document.getElementById('nameField');
+
+    let player, goal, obstacles, level, score, lives, isGameOver;
+
+    function initGame() {
+      player = { x: 50, y: 50, size: 20, speed: 2 };
+      goal = { x: 300, y: 200, size: 20 };
+      level = 1;
+      score = 0;
+      lives = 3;
+      isGameOver = false;
+      generateObstacles(level);
+    }
+
+    function generateObstacles(level) {
+      obstacles = [];
+      for (let i = 0; i < level + 2; i++) {
+        obstacles.push({
+          x: Math.random() * (canvas.width - 30),
+          y: Math.random() * (canvas.height - 30),
+          width: 30,
+          height: 30
+        });
+      }
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(player.x, player.y, player.size, player.size);
+    }
+
+    function drawGoal() {
+      ctx.fillStyle = 'green';
+      ctx.fillRect(goal.x, goal.y, goal.size, goal.size);
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = 'red';
+      obstacles.forEach(obs => {
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      });
+    }
+
+    function checkCollision(a, b) {
+      return (
+        a.x < b.x + b.size &&
+        a.x + a.size > b.x &&
+        a.y < b.y + b.size &&
+        a.y + a.size > b.y
+      );
+    }
+
+    function checkObstacleCollision() {
+      return obstacles.some(obs =>
+        player.x < obs.x + obs.width &&
+        player.x + player.size > obs.x &&
+        player.y < obs.y + obs.height &&
+        player.y + player.size > obs.y
+      );
+    }
+
+    function update() {
+      if (checkCollision(player, goal)) {
+        goalSound.play();
+        score += 10;
+        level++;
+        player.x = 50;
+        player.y = 50;
+        goal.x = Math.random() * (canvas.width - 20);
+        goal.y = Math.random() * (canvas.height - 20);
+        player.speed += 0.2;
+        generateObstacles(level);
+      }
+
+      if (checkObstacleCollision()) {
+        lives--;
+        if (lives <= 0) {
+          gameOverSound.play();
+          isGameOver = true;
+          nameInput.style.display = 'flex';
+        } else {
+          player.x = 50;
+          player.y = 50;
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      drawGoal();
+      drawObstacles();
+      ctx.fillStyle = 'black';
+      ctx.font = '16px Arial';
+      ctx.fillText(`Fase: ${level} | Pontuação: ${score} | Vidas: ${lives}`, 10, 20);
+      if (isGameOver) ctx.fillText("Game Over", canvas.width / 2 - 40, canvas.height / 2);
+    }
+
+    function gameLoop() {
+      if (!isGameOver) {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      } else {
+        draw();
+      }
+    }
+
+    function startGame() {
+      menu.style.display = 'none';
+      bgm.volume = 0.3;
+      bgm.play();
+      initGame();
+      gameLoop();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp') player.y -= player.speed;
+      if (e.key === 'ArrowDown') player.y += player.speed;
+      if (e.key === 'ArrowLeft') player.x -= player.speed;
+      if (e.key === 'ArrowRight') player.x += player.speed;
+    });
+
+    canvas.addEventListener('touchstart', function(e) {
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const cx = touch.clientX - rect.left;
+      const cy = touch.clientY - rect.top;
+      if (cx < player.x) player.x -= player.speed;
+      else if (cx > player.x + player.size) player.x += player.speed;
+      if (cy < player.y) player.y -= player.speed;
+      else if (cy > player.y + player.size) player.y += player.speed;
+    });
+
+    function saveScore() {
+      let name = nameField.value.trim();
+      if (name === '') name = 'Anônimo';
+
+      db.collection('ranking').add({
+        nome: name,
+        pontos: score,
+        data: new Date().toISOString()
+      }).then(() => {
+        nameInput.style.display = 'none';
+        showRanking();
+      });
+    }
+
+    function showRanking() {
+      rankingList.innerHTML = 'Carregando...';
+      db.collection('ranking')
+        .orderBy('pontos', 'desc')
+        .limit(5)
+        .get()
+        .then(snapshot => {
+          rankingList.innerHTML = '';
+          snapshot.forEach((doc, i) => {
+            const r = doc.data();
+            rankingList.innerHTML += `<div>${i+1}. ${r.nome} - ${r.pontos} pontos</div>`;
+          });
+          ranking.style.display = 'flex';
+        });
+    }
+  </script>
+</body>
+</html>
